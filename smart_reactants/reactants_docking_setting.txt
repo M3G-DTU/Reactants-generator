@@ -1,0 +1,24 @@
+#xyz_file1. Please don't change the format!!! Especially the row number.
+../Input/nowat.xyz
+#xyz_file2
+../Input/monomer1.xyz
+#out_file1
+../Input/nowat.out
+#out_file2
+../Input/monomer1.out
+#set critera
+#elec_cutoff. Set >=10 will ignore this restriction.
+10
+#nucl_cutoff. Set >10 will ignore this restriction.
+10
+#name for output directory (don't need to create by yourself)
+../Output
+#hotspots distances setting (angstorm)
+2.2
+#keep top N (1,2,3...) or N%(please convert to float, like 0.5)? Type 0 to keep all candidates.
+2
+#quality check
+#strict filter level: N (int >=3), higher stricter.
+3
+#minimal distance between two other atoms (at different molecules), higher stricter. Recommandation: 1.6
+1.6
