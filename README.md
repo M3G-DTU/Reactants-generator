@@ -1,4 +1,4 @@
-# Smart_reactant
+# Reactants generator
 Automated reactant generator based on local reactivity of the molecule
 Automated reactant generator based on local reactivity of the molecule need numpy, geatpy
 
