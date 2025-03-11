@@ -1,6 +1,7 @@
 # Reactants generator
-Automated reactant generator based on local reactivity of the molecule
-Automated reactant generator based on local reactivity of the molecule need numpy, geatpy
+Automated reactant generator for the reactivity analysis of organic flow battery electrolytes
+
+need numpy, geatpy
 
 usage:
 
