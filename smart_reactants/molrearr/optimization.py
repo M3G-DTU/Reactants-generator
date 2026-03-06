@@ -4,7 +4,8 @@ from molrearr.read_xyz2list import *
 from molrearr.drone_move import *
 from molrearr.quality_check import *
 
-def angle2dist(mol1,mol2,hot1,hot2,anglelist):
+def angle2dist(mol1: str, mol2: str, hot1: int, hot2: int, anglelist: list) -> float:
+    """Calculate the distance between the hotspot of molecule 1 and the hotspot of molecule 2 after applying the specified angles to molecule 2."""
     molecule1=read_xyz2list(mol1)
 
     new2=drone_move(mol1,hot1,mol2,hot2,anglelist)
@@ -14,7 +15,8 @@ def angle2dist(mol1,mol2,hot1,hot2,anglelist):
 
     return min_dist
 
-def block_due2anlge(mol1,mol2,hot1,hot2,anglelist,strict_filter_level):
+def block_due2angle(mol1: str, mol2: str, hot1: int, hot2: int, anglelist: list, strict_filter_level: int) -> int:
+    """Calculate the number of blocks due to the specified angles between the hotspots of two molecules."""
     new2=drone_move(mol1,hot1,mol2,hot2,anglelist)
     molecule1=read_xyz2list(mol1)
     molecule2=read_fakexyz2list(new2)
@@ -24,8 +26,8 @@ def block_due2anlge(mol1,mol2,hot1,hot2,anglelist,strict_filter_level):
 
 
 
-def geat_optimization(mol1,mol2,hot1,hot2,minimal_distance, strict_filter_level):
-
+def geat_optimization(mol1: str, mol2: str, hot1: int, hot2: int, minimal_distance: float, strict_filter_level: int) -> list:
+    """Perform optimization using the GEAT algorithm to find the optimal angles for molecule 2 to minimize the distance between the hotspots of two molecules while considering blocking constraints."""
     # 构建问题 -> Build issues
     #r = 1  # 目标函数需要用到的额外数据 -> Extra data needed for the objective function
     @ea.Problem.single
@@ -39,7 +41,7 @@ def geat_optimization(mol1,mol2,hot1,hot2,minimal_distance, strict_filter_level)
         anglelist=[x1,x2,x3,x4,x5]
         f= angle2dist(mol1,mol2,hot1,hot2,anglelist)
         CV = np.array([minimal_distance-angle2dist(mol1,mol2,hot1,hot2,anglelist),
-                        block_due2anlge(mol1,mol2,hot1,hot2,anglelist,strict_filter_level)-1])  # 计算违反约束程度 -> Calculate the degree of constraint violation
+                        block_due2angle(mol1,mol2,hot1,hot2,anglelist,strict_filter_level)-1])  # 计算违反约束程度 -> Calculate the degree of constraint violation
 
         return f, CV
 
@@ -63,9 +65,10 @@ def geat_optimization(mol1,mol2,hot1,hot2,minimal_distance, strict_filter_level)
     
     return res['Vars'][0]
 
-def optimal_position(mol1,mol2,hot1,hot2,minimal_distance, strict_filter_level):
-    anglelist=geat_optimization(mol1,mol2,hot1,hot2,minimal_distance, strict_filter_level)
-    optimal=drone_move(mol1,hot1,mol2,hot2,anglelist)
+def optimal_position(mol1: str, mol2: str, hot1: int, hot2: int, minimal_distance: float, strict_filter_level: int) -> str:
+    """Find the optimal position for molecule 2 relative to molecule 1 using the GEAT optimization results."""
+    anglelist = geat_optimization(mol1, mol2, hot1, hot2, minimal_distance, strict_filter_level)
+    optimal = drone_move(mol1, hot1, mol2, hot2, anglelist)
 
     return optimal
 
