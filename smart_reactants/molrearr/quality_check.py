@@ -1,7 +1,7 @@
 from molrearr.read_xyz2list import *
 from molrearr.two_vectors_angle import *
 
-def point_between_hotspots(mol1,mol2,hot_1,hot_2,factor):
+def point_between_hotspots(mol1,mol2,hot_1,hot_2,strict_filter_level):
     record=[]
     n=0
     m=0
@@ -15,7 +15,7 @@ def point_between_hotspots(mol1,mol2,hot_1,hot_2,factor):
             n+=1
             block_hot_vector1=np.subtract(atom, hot1_coord)
             block_vector_angle=angle_between(block_hot_vector1,hot1_hot2_vector)
-            if block_vector_angle <10*factor or block_vector_angle>(180-10*factor):
+            if block_vector_angle <10*strict_filter_level or block_vector_angle>(180-10*strict_filter_level):
                 m+=1
 
     for index,atom in enumerate(mol2[1]):
@@ -24,7 +24,7 @@ def point_between_hotspots(mol1,mol2,hot_1,hot_2,factor):
             n+=1
             block_hot_vector2=np.subtract(atom, hot2_coord)
             block_vector_angle=angle_between(block_hot_vector2,hot1_hot2_vector)
-            if block_vector_angle <10*factor or block_vector_angle>(180-10*factor):
+            if block_vector_angle <10*strict_filter_level or block_vector_angle>(180-10*strict_filter_level):
                 m+=1
 
     record.append(n)
@@ -47,8 +47,6 @@ def other_near_atoms(mol1,mol2,hot_1,hot_2,factor):
                 if index2 != int(hot_2)-1:
                     dist=two_point_distance(atom,atom2)
                     if dist <= float(factor):
-                        #print(index)
-                        #print(index2)
                         n+=1
     
     return n

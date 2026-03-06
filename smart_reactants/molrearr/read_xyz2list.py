@@ -29,6 +29,7 @@ def read_fakexyz2list(fakefile):
         line = f.readline()
             
     return out
+
 def read_xyz2list(filename):
     if len(filename.split()) == 1:
         with open(filename,"r") as file:

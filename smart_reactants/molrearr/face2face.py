@@ -64,19 +64,16 @@ def face2face(mol2,hotspot_in_file2,vector1,vector2,target1):
     args=' -rv '+str(axleangle1[0])+' '+str(axleangle1[1])+' '+str(axleangle1[2])+' '+str(axleangle1[3])
     
     dum1=orient_file(mol2,args)
-    
-    
     dum_molecule=read_fakexyz2list(dum1)
-
     hot2_dum=hot_coordinate(dum_molecule,hotspot_in_file2)
     vectors=np.subtract(target1,hot2_dum)
 
     args2='-tx '+str(vectors[0])+' -ty '+str(vectors[1])+' -tz '+str(vectors[2])
     final=orient_fakefile(dum1,args2)
-
     return final
 
 def face2faceS(mol1,mol2,hot1,hot2,restrict):
+    # old we will replace the next two lines
     mol_1=read_xyz2list(mol1)
     mol_2=read_xyz2list(mol2)
     hotspot1=hot_coordinate(mol_1,hot1)
