@@ -1,36 +1,38 @@
-# Reactants generator
+# Reactants Generator
 Automated reactant generator for the reactivity analysis of organic flow battery electrolytes
 
-need numpy, geatpy
+## Prerequisites and Installation
 
-usage:
+As geatpy requires Python version 3.5, 3.6, 3.7, 3.8, 3.9, or 3.10, make sure you have one of these versions installed on your machine. You can download and install Python from the official website: https://www.python.org/downloads/.
 
-put input xyzfiles and outfiles in a input folder
+```bash
+python=3.10
+geatpy==2.7.0
+numpy==1.26.4
+```
 
-change settings in reactants_docking_setting.txt
+For more about installation see [Usage and installation](Documentation/Usage%20and%20installation.md)
 
-then
+## Usage
 
-python reactants_docking.py
 
-you will find something in your target output folder
+Aquire .out files for the reactants. It should be a Conceptual DFT calculation calculation with output files from the Amsterdam Modeling Suite (AMS) program. [https://www.scm.com/amsterdam-modeling-suite/]
 
-if you want to copy the scripts to new folder, please note following files are necessary
+## Available options
+To see available options use:
 
-reactants_docking.py
+```bash
+python reactants_docking.py --help
+```
 
-**molecule_rearrangement.py ** reactants_docking_setting.txt
+The only required input is the .out files for the reactants using the '-o' or '--out_files' options. So the most basic command to run the script is:
 
-molearr folder
+```bash
+python reactants_docking.py -o path/to/reactant1.out path/to/reactant2.out
+```
 
-split_xyz.py is a test split script after your process
+The default output folder is set to "Output". If you want to change it, you can specify the output directory using the `--output_dir` option when running the script. For example:
 
-you can use it as
-
-python split_xyz.py filename atom_number_of_first_molecule atom_number_of_second_molecule
-
-example
-
-python split_xyz.py filename.xyz 12 13
-
-it will generate two files filename_split_1.xyz and filename_split_2.xyz
+```bash
+python reactants_docking.py -o path/to/reactant1.out path/to/reactant2.out --output_dir path/to/my/outputfolder
+```

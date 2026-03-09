@@ -32,7 +32,7 @@ def argument_parser():
                         help='the cutoff value for elec')
     parser.add_argument('-ncut', '--nucl_cutoff', type=float, default=10.0,
                         help='the cutoff value for nucl interactions')
-    parser.add_argument('--output_dir', type=str, default='../Output', 
+    parser.add_argument('--output_dir', type=str, default='Output', 
                         help='the directory to save the output files')
     parser.add_argument('-rd', '--restrict_distance', type=float, default=2.2,
                         help='the distance threshold for restricting movements (in angstroms)')
