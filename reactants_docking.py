@@ -1,8 +1,8 @@
 # Import relevant libraries
 import os
 import math
-import pkg_resources
-from pkg_resources import DistributionNotFound, VersionConflict
+#import pkg_resources
+#from pkg_resources import DistributionNotFound, VersionConflict
 import argparse
 
 from molrearr.face2face import *
@@ -11,32 +11,21 @@ from molrearr.quality_check import *
 from molrearr.optimization import *
 from molrearr.read_xyz2list import *
 
-# dependencies can be any iterable with strings, 
-# e.g. file line-by-line iterator
-dependencies = [
-  'numpy',
-  'geatpy',
-]
-
-# here, if a dependency is not met, a DistributionNotFound or VersionConflict
-# exception is thrown. 
-pkg_resources.require(dependencies)
-
 # Argument Parser
 def argument_parser():
-    parser = argparse.ArgumentParser(description='Process some integers.')
-    parser.add_argument('-o', '--out_file', type=str, required=True, nargs=2, 
+    parser = argparse.ArgumentParser(description='A script to perform reactant docking based on the output of FDL or FMO calculations in AMS.')
+    parser.add_argument('-o', '--out_files', type=str, required=True, nargs=2, 
                         help='the AMS output files')
     parser.add_argument('--method', type=str, required=True, choices=['FMO', 'Hirshfeld', 'Mulliken', 'Voronoi'],
                         help='the method used for partitioning (FMO, Hirshfeld, Mulliken, or Voronoi)')
-    parser.add_argument('-xyz', '--xyz_file', type=str, nargs=2,
+    parser.add_argument('-xyz', '--xyz_files', type=str, nargs=2,
                         help='the XYZ files of the two molecules. If not provided, it is expected that the XYZ files with the same name as the output files but with .xyz extension are in the same directory as the output files')
     parser.add_argument('-hs', '--hotspot_distance', type=float, default=2.2, 
                         help='the distance threshold for identifying hotspots (in angstroms)')
     parser.add_argument('-md', '--minimal_distance', type=float, default=1.6,
                         help='the minimal distance between the two atoms for different fragments (in angstroms)')
     parser.add_argument('-nc', '--n_candidates', type=int, default=0,
-                        help='the number of top candidates to keep (if 0, keep all candidates). Can also be a percentage (e.g., 0.5 to keep the top 50% of candidates)')
+                        help='the number of top candidates to keep (if 0, keep all candidates). Can also be a percentage (e.g., 0.5 to keep the top 50%% of candidates)')
     parser.add_argument('-ah', '--add_aditional_H', type=int, default=None,
                         help='number of additional H atoms to add. If None, no additional H atoms are added')
     parser.add_argument('-ecut', '--elec_cutoff', type=float, default=10.0, 
@@ -410,11 +399,11 @@ def molecule_rearrangement(xyz_file1: str, xyz_file2: str, hotspot1_index: int, 
 # Parse arguments
 args = argument_parser()
 
-out_file1=args.out_file[0]
-out_file2=args.out_file[1]
-if args.xyz_file is not None:
-    xyz_file1=args.xyz_file[0]
-    xyz_file2=args.xyz_file[1]
+out_file1=args.out_files[0]
+out_file2=args.out_files[1]
+if args.xyz_files is not None:
+    xyz_file1=args.xyz_files[0]
+    xyz_file2=args.xyz_files[1]
 else:
     xyz_file1=out_file1.replace('.out','.xyz')
     xyz_file2=out_file2.replace('.out','.xyz')

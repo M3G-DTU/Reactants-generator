@@ -8,36 +8,31 @@ The script does the following:
 
 	1.	Reads molecular data from .out files and parses specific sections related to electrophilicity and nucleophilicity.
 	2.	Filters and sorts atoms based on their properties.
-	3.	Generates new molecular configurations using a secondary script molecule_rearrangement.py with the atoms that meet certain criteria.
+	3.	Generates new molecular configurations with the atoms that meet certain criteria.
 	4.	Allows customization of how the hydrogen atoms are weighted during the filtering process.
 	5.	Outputs scripts that create new XYZ files containing the rearranged molecules.
-
+	6.  To see available options use "python reactants_docking.py --help"
+ 
 ## Prerequisites
 
 Before running the script, ensure the following:
 
-	1.	Python 3.x is installed.
+	1.	Python 3.5, 3.6, 3.7, 3.8, 3.9, or 3.10 is installed.
 	2.	The necessary Python packages are installed (numpy, geatpy).
-	3.	A secondary script molecule_rearrangement.py should be available in the working directory.
-	4.	.out files with the required molecular data are available.
-	5.	A configuration file named reactants_docking_setting.txt should be correctly formatted.
+	3.	.out files with the required molecular data are available.
 
 ## Installation Steps
 
-### Step 1: Install Python
+### Step 1: Install using Python
 
-Ensure you have Python 3.x installed on your machine. You can download and install it from the official website: https://www.python.org/downloads/.
+Ensure you have Python 3.5, 3.6, 3.7, 3.8, 3.9, or 3.10 installed on your machine. You can download and install it from the official website: https://www.python.org/downloads/.
 
-### Step 2: Create and Activate a Virtual Environment (Optional but Recommended)
-
+#### Step 1.1: Create and Activate a Virtual Environment (Optional but Recommended)
 It’s recommended to create a Python virtual environment to isolate dependencies for this project. You can do this by running:
 ```python
 python -m venv myenv
 source myenv/bin/activate  # On Windows use myenv\Scripts\activate
 ```
-
-### Step 3: Install Required Dependencies
-
 The script uses two Python libraries: numpy and geatpy. Install them using the following commands:
 ```python
 pip install numpy
@@ -45,41 +40,23 @@ pip install geatpy
 ```
 Alternatively, you can add more dependencies to the dependencies list in the script if necessary.
 
-### Step 4: Prepare the Input Files
-
-The script requires:
-
-	1.	../Input/*.xyz files with molecular coordinates.
-    2.	../Input/*.out files with molecular data.
-    3.  molearr folder
-	4.	./reactants_docking_setting.txt, a setting file formatted as shown below:
-
+### Step 2: Install using Conda and Pip
+If you prefer using Conda, you can create and activate a Conda environment with the following
+commands:
+```python
+conda create --name geat_env python=3.10 pip
+conda activate geat_env
+pip install --upgrade pip
+pip install -r requirements.txt
+python -c "import numpy, geatpy; print(numpy.__version__, geatpy.__version__)"
 ```
-Line 1: #xyz_file1
-Line 2: <path to xyz_file1>
-Line 3: #xyz_file2
-Line 4: <path to xyz_file2>
-Line 5: #out_file1
-Line 6: <path to out_file1>
-Line 7: #out_file2
-Line 8: <path to out_file2>
-Line 9: #set critera
-Line 10: #elec_cutoff. Set >=10 will ignore this restriction.
-Line 11: <electrophilicity cutoff>
-Line 12: #nucl_cutoff. Set >10 will ignore this restriction.
-Line 13: <nucleophilicity cutoff>
-Line 14: #name for output directory (don't need to create by yourself)
-Line 15: <output directory>
-Line 16: #hotspots distances setting (angstorm)
-Line 17: <distance>
-Line 18: #keep top N (1,2,3...) or N%(please convert to float, like 0.5)? Type 0 to keep all candidates.
-Line 19: <top candidate count>
-Line 20: #quality check
-Line 21: #strict filter level: N (int >=3), higher stricter.
-Line 22: <filter level>
-Line 23: #minimal distance between two other atoms (at different molecules), higher stricter. Recommandation: 1.6
-Line 24: <minimal distance>
-```
+This will create a Conda environment named `geat_env`, install the required packages, and verify the installation by printing the versions of numpy and geatpy.
+
+### Step 3: Before running the script
+
+	Make sure you have the inital .out files. 
+
+
 
 ### Step 5: Running the Script
 
@@ -101,24 +78,7 @@ When the script runs, it will:
 
 ## Output Files
 
-The script will generate .xyz files in the output directory specified in the settings file. Each file represents a new molecular arrangement, with naming conventions based on the rearranged molecules and atoms involved.
-
-## Split molecules
-
-split_xyz.py is a test split script after your process
-
-you can use it as 
-
-```python
-python split_xyz.py filename atom_number_of_first_molecule atom_number_of_second_molecule 
-```
-
-Example:
-
-```python
-python split_xyz.py filename.xyz 12 13
-```
-It will generate two files filename_split_1.xyz and filename_split_2.xyz
+The script will generate .xyz files in the output directory which can be specified using the '--output_dir' option. Each file represents a new molecular arrangement, with naming conventions based on the rearranged molecules and atoms involved.
 
 
 ## Error Handling

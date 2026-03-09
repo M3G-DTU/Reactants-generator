@@ -1,4 +1,4 @@
-# Documentation for the Molecular Docking Script
+# Documentation for the Molecular Docking in the Reactants Docking Script
 
 This Python script facilitates the docking of two molecules by aligning them based on their “hotspots,” performing an optimization, and then merging the molecular coordinates into a new XYZ file. The script reads molecular data from XYZ files, computes geometric properties, and ensures quality checks on the final molecular configuration. Below are the detailed steps and instructions on how to set up and run this code.
 

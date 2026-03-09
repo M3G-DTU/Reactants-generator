@@ -14,13 +14,7 @@ The key components of the script are:
 
 ## Prepare Input Files
 
-	•	Molecular XYZ files: You need two XYZ files for the molecules you want to dock, e.g., benzo.xyz and new1.xyz.
-	•	Settings file: The reactants_docking_setting.txt file defines various parameters, including filter levels and distance settings. An example format is as follows:
-```
-Line 1-20: <parameters>
-Line 21: <strict filter level>
-Line 23: <maximum allowed distance>
-```
+	•	Molecular .out files: You need two .out files for the molecules you want to dock, e.g., benzo.out and new1.out (specify using the '-o' or '--out_files' options). Alternatively, you can use XYZ files to specify the molecular coordinates directly (this is done using the '-xyz' or '--xyz_files' options).
 
 ## Script Functions
 
