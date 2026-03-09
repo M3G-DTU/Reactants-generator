@@ -1,6 +1,7 @@
 from molrearr.orient_mod import *
 
 def orient_fakefile(fakefile,args): #call_orient_from_fakefile
+    """Call the orient function using a fake file (meaning a string representing the contents of an XYZ file) as input, applying the specified operations to the geometry."""
     # if a real file or a fakefile
     arg_for_final='intermediate.xyz '+str(args)
     #args such as: 'intermediate.xyz -rx 90'
@@ -9,6 +10,7 @@ def orient_fakefile(fakefile,args): #call_orient_from_fakefile
     return final
 
 def orient_file(filename,args): #call_orient_from_file
+    """Call the orient function using a real file (an XYZ file on disk) as input, applying the specified operations to the geometry."""
     # if a real file or a fakefile
     if len(filename.split()) == 1:
         with open(filename,"r") as file:

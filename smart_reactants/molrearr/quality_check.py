@@ -2,6 +2,7 @@ from molrearr.read_xyz2list import *
 from molrearr.two_vectors_angle import *
 
 def point_between_hotspots(mol1,mol2,hot_1,hot_2,strict_filter_level):
+    """Check if there are any atoms between the hotspots of two molecules."""
     record=[]
     n=0
     m=0
@@ -32,6 +33,7 @@ def point_between_hotspots(mol1,mol2,hot_1,hot_2,strict_filter_level):
     return record
 
 def far_atom(mol, hot_coord):
+    """Find the atom farthest from the specified hotspot."""
     dist_list=[]
     for atom in mol[1]:
         dist=two_point_distance(atom,hot_coord)
@@ -40,6 +42,7 @@ def far_atom(mol, hot_coord):
     return dist_list.index(max(dist_list))
 
 def other_near_atoms(mol1,mol2,hot_1,hot_2,factor):
+    """Count the number of atoms in mol1 and mol2 that are within a specified distance factor, excluding the hotspots."""
     n=0
     for index,atom in enumerate(mol1[1]):
         if index != int(hot_1)-1:
@@ -52,6 +55,7 @@ def other_near_atoms(mol1,mol2,hot_1,hot_2,factor):
     return n
 
 def other_atom_in_mol2_to_hot1(mol1,mol2,hot_2):
+    """Find the atom in mol2 that is closest to the hotspot in mol1, excluding the hotspot itself."""
     dist_list=[]
     index2_list=[]
     for atom in mol1[1]:

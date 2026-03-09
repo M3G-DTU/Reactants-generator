@@ -4,6 +4,7 @@ from molrearr.fast_call_orient import *
 from molrearr.read_xyz2list import *
 
 def rotation_matrix(vec1,vec2):
+    """Calculate the rotation matrix that rotates vec1 to vec2."""
     a,b=(np.array(vec1)/np.linalg.norm(vec1)).reshape(3), (np.array(vec2)/np.linalg.norm(vec2)).reshape(3)
     v=np.cross(a,b)
     if any(v):  # if not all zeros then
@@ -16,7 +17,8 @@ def rotation_matrix(vec1,vec2):
         return np.eye(3)  # cross of all zeros only occurs on identical directions
 
 # Checks if a matrix is a valid rotation matrix.
-def isRotationMatrix(R) :
+def isRotationMatrix(R):
+    """Verify that a matrix is a valid rotation matrix."""
     Rt = np.transpose(R)
     shouldBeIdentity = np.dot(Rt, R)
     I = np.identity(3, dtype = R.dtype)
@@ -27,7 +29,7 @@ def isRotationMatrix(R) :
 # The result is the same as MATLAB except the order
 # of the euler angles ( x and z are swapped ).
 def rotationMatrixToEulerAngles(R) :
- 
+    """Convert a rotation matrix to Euler angles (in degrees)."""
     assert(isRotationMatrix(R))
      
     sy = math.sqrt(R[0,0] * R[0,0] +  R[1,0] * R[1,0])
@@ -47,6 +49,7 @@ def rotationMatrixToEulerAngles(R) :
     return np.array([math.degrees(x), math.degrees(y), math.degrees(z)])
 
 def rotationMatrixToAxleAngel(R):
+    """Convert a rotation matrix to an axis-angle representation (in degrees)."""
     assert(isRotationMatrix(R))
 
     theta=math.acos((R[0,0]+R[1,1]+R[2,2]-1)*0.5)
@@ -57,7 +60,7 @@ def rotationMatrixToAxleAngel(R):
     return [math.degrees(theta),vx,vy,vz]
 
 def face2face(mol2,hotspot_in_file2,vector1,vector2,target1):
-
+    """Align mol2's hotspot with mol1's hotspot using rotation and translation."""
     rota1=rotation_matrix(vector2,vector1*(-1))
     axleangle1=rotationMatrixToAxleAngel(rota1)
     
@@ -73,7 +76,7 @@ def face2face(mol2,hotspot_in_file2,vector1,vector2,target1):
     return final
 
 def face2faceS(mol1,mol2,hot1,hot2,restrict):
-    # old we will replace the next two lines
+    """Align mol2's hotspot with mol1's hotspot while maintaining a specified distance (restrict) between them."""
     mol_1=read_xyz2list(mol1)
     mol_2=read_xyz2list(mol2)
     hotspot1=hot_coordinate(mol_1,hot1)

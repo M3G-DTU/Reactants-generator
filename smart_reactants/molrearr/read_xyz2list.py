@@ -2,6 +2,7 @@ import io
 import numpy as np
 
 def read_fakexyz2list(fakefile):
+    """Parse the contents of an XYZ file from a string and return a list containing atom names, coordinates, comments, and the number of atoms."""
     out = []
     f = io.StringIO(fakefile)
     
@@ -31,6 +32,7 @@ def read_fakexyz2list(fakefile):
     return out
 
 def read_xyz2list(filename):
+    """Read an XYZ file and return a list containing atom names, coordinates, comments, and the number of atoms. Regardless of input type."""
     if len(filename.split()) == 1:
         with open(filename,"r") as file:
             fakefile=file.read()
@@ -40,9 +42,11 @@ def read_xyz2list(filename):
 
 
 def hot_coordinate(molecule,index):
+    """Return the coordinates of the specified hotspot in the molecule."""
     return molecule[1][int(index)-1]
 
 def center_of_geometry(molecule):
+    """Calculate the center of geometry of the molecule, excluding 'W' atoms."""
     n,x,y,z=(0,0,0,0)
     a=molecule
     for index, element in enumerate(a[0]):
@@ -57,6 +61,7 @@ def center_of_geometry(molecule):
     return cog
 
 def two_point_distance(coordinate1, coordinate2):
+    """Calculate the Euclidean distance between two points in 3D space."""
     return np.sqrt(sum(np.power((np.array(coordinate1)-np.array(coordinate2)),2)))
 
 if __name__ == '__main__':

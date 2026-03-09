@@ -157,6 +157,7 @@ class Geometry(object):
     '''Stores all of the data in an xyz file'''
 
     def __init__(self, names, coordinates, comment="", extras=None):
+        """Initialize a Geometry object with atom names, coordinates, comments, and any extra data."""
         self.names = names
         self.coordinates = coordinates
         self.natoms = coordinates.shape[0]
@@ -165,6 +166,7 @@ class Geometry(object):
         self.com = np.array([])
 
     def print(self):
+        """Print the geometry in XYZ format."""
         print("%s" % self.natoms)
         print("%s" % self.comment)
 
@@ -174,7 +176,7 @@ class Geometry(object):
                   (self.names[i], self.coordinates[i, 0], self.coordinates[i, 1], self.coordinates[i, 2], extra))
 
     def print2(self):
-        
+        """Return the geometry in XYZ format as a string."""
         a="%s\n" % self.natoms
         a+="%s\n" % self.comment
         #print(a)
@@ -187,9 +189,7 @@ class Geometry(object):
         return a
 
     def computeCOM(self):
-        '''
-        Returns the center of mass of the geometry.
-        '''
+        """Calculate and return the center of mass of the geometry."""
         if (len(self.com) == 3):
             return self.com
         else:
@@ -288,16 +288,19 @@ class Operation(object):
 
 
 class Translate(Operation):
+    '''Generic translation'''
 
     def __call__(self, data):
+        """Apply the translation to the provided coordinate data."""
         displacement = self.displacement_func(data)
         data += np.repeat(displacement.reshape(1, 3), data.shape[0], axis=0)
 
     def iscomposable(self, op):
-        '''Safety first'''
+        """Return true if this operation can be composed with the input operation."""
         return False
 
     def compose(self, trans):
+        """Compose this translation with another translation."""
         if not isinstance(trans, Translate):
             raise Exception("Improper use of Translate.compose()!")
         else:
@@ -310,50 +313,61 @@ class Translate(Operation):
 
 
 class StaticTranslate(Translate):
-
+    """Translate based on static information, such as a fixed vector."""
     def __init__(self, displacement):
+        """Initialize a StaticTranslate with a fixed displacement vector."""
         self.displacement = displacement
 
     def displacement_func(self, data):
+        """Return the fixed displacement vector."""
         return self.displacement
 
     def iscomposable(self, op):
+        """Return true if the input operation is also a StaticTranslate, allowing for composition."""
         return isinstance(op, StaticTranslate)
 
 
 class DynamicTranslate(Translate):
-
+    """Translate based on dynamic information, such as the position of an atom."""
+    
     def iscomposable(self, op):
+        """Return false as dynamic translations cannot be composed."""
         return False
 
 
 class AtomTranslate(DynamicTranslate):
-
+    """Translate based on a specific atom's position."""
     def __init__(self, iatom, fac=1.0):
         self.iatom = iatom
         self.fac = fac
 
     def displacement_func(self, data):
+        """Return the displacement vector based on the position of the specified atom."""
         return self.fac * data[self.iatom, :]
 
 
 class CentroidTranslate(DynamicTranslate):
+    """Translate based on the centroid of a group of atoms."""
 
     def __init__(self, atomlist, fac=1.0):
+        """Initialize a CentroidTranslate with a list of atom indices and a scaling factor."""
         self.atomlist = atomlist
         self.fac = fac / len(atomlist)
 
     def displacement_func(self, data):
+        """Return the displacement vector based on the centroid of the specified atoms."""
         return np.sum(data[self.atomlist, :], axis=0) * self.fac
 
 
 class COMTranslate(DynamicTranslate):
-
+    """Translate based on the center of mass of the molecule."""
     def __init__(self, geom):
+        """Initialize a COMTranslate with the geometry of the molecule to calculate masses."""
         self.mass = [masses[n.lower()] for n in geom.names]
         self.totalmass = sum(self.mass)
 
     def displacement_func(self, data):
+        """Return the displacement vector based on the center of mass of the molecule."""
         return -np.dot(self.mass, data) / np.sum(self.mass)
 
 
@@ -364,9 +378,11 @@ class Rotate(Operation):
     '''Generic rotation'''
 
     def __init__(self):
+        """Initialize a Rotate operation with no rotation function defined."""
         self.rotate_func = None
 
     def __call__(self, data):
+        """Apply the rotation to the provided coordinate data."""
         A = self.rotate_func(data)
         detA = np.linalg.det(A)
         if detA < 0.0:
@@ -375,10 +391,11 @@ class Rotate(Operation):
         data[:] = tmp[:]
 
     def iscomposable(self, op):
-        '''Safety first'''
+        """Return false as rotations cannot be composed."""
         return False
 
     def compose(self, rot):
+        """Compose this rotation with another rotation."""
         if not isinstance(rot, Rotate):
             raise Exception("Improper use of Rotate.compose()")
         else:
@@ -393,6 +410,7 @@ class Rotate(Operation):
 
     @staticmethod
     def axis_angle(axis, angle):
+        """Return a rotation matrix for rotating around a specified axis by a given angle."""
         axis /= np.linalg.norm(axis)
         theta = m.radians(angle)
 
@@ -409,35 +427,42 @@ class Rotate(Operation):
 
 
 class StaticRotate(Rotate):
-    '''Rotate based on static information'''
+    """Rotate based on static information"""
 
     def __init__(self, rot_matrix):
+        """Initialize a StaticRotate with a rotation matrix."""
         self.rot_matrix = rot_matrix
 
     def rotate_func(self, data):
+        """Return the fixed rotation matrix."""
         return self.rot_matrix
 
     def iscomposable(self, op):
+        """Return true if the input operation is also a StaticRotate, allowing for composition."""
         return isinstance(op, StaticRotate)
 
     @classmethod
     def from_axis_angle(cls, axis, angle):
+        """Create a StaticRotate from an axis and angle of rotation."""
         return cls(Rotate.axis_angle(axis, angle))
 
 
 class DynamicRotate(Rotate):
-
+    """Rotate based on dynamic information."""
     def iscomposable(self, op):
+        """Return false as dynamic rotations cannot be composed."""
         return False
 
 
 class AtomPairRotate(DynamicRotate):
-
+    """Rotate based on the axis defined by a pair of atoms and a specified angle."""
     def __init__(self, i, j, angle):
+        """Initialize an AtomPairRotate with the indices of two atoms and the angle of rotation."""
         self.i, self.j = i, j
         self.angle = angle
 
     def rotate_func(self, data):
+        """Return a rotation matrix for rotating around the axis defined by the two atoms."""
         iatom = data[self.i, :]
         jatom = data[self.j, :]
         axis = jatom - iatom
@@ -446,11 +471,14 @@ class AtomPairRotate(DynamicRotate):
 
 
 class AlignRotate(DynamicRotate):
+    """Rotate based on the alignment of three atoms."""
 
     def __init__(self, i, j, k):
+        """Initialize an AlignRotate with the indices of three atoms."""
         self.i, self.j, self.k = i, j, k
 
     def rotate_func(self, data):
+        """Return a rotation matrix that aligns the three specified atoms along the x, y, and z axes."""
         iatom = data[self.i, :]
         jatom = data[self.j, :]
         katom = data[self.k, :]
@@ -468,11 +496,14 @@ class AlignRotate(DynamicRotate):
 
 
 class InertiaRotate(DynamicRotate):
+    """Rotate based on the inertia tensor of a molecule."""
 
     def __init__(self, geom):
+        """Initialize an InertiaRotate with the geometry of the molecule."""
         self.mass = [masses[n.lower()] for n in geom.names]
 
     def rotate_func(self, data):
+        """Return a rotation matrix that aligns the molecule along its principal axes of inertia."""
         inertial_tensor = -np.einsum("ax,a,ay->xy", data, self.mass, data)
         # negate sign to reverse the sorting of the tensor
         eig, axes = np.linalg.eigh(-inertial_tensor)
@@ -494,12 +525,15 @@ class InertiaRotate(DynamicRotate):
 
 
 class NormalRotate(DynamicRotate):
+    """Rotate based on the normal vector of a plane fitted to a group of atoms."""
 
     def __init__(self, atomlist, angle):
+        """Initialize a NormalRotate with the indices of atoms and the angle of rotation."""
         self.atomlist = atomlist
         self.angle = angle
 
     def rotate_func(self, data):
+        """Return a rotation matrix for rotating around the normal vector of a plane fitted to the specified atoms by the given angle."""
         atoms = np.array([data[i, :] for i in self.atomlist])
 
         U, s, V = np.linalg.svd(atoms, full_matrices=False)
@@ -519,11 +553,14 @@ class NormalRotate(DynamicRotate):
 
 
 class PlaneRotate(DynamicRotate):
+    """Rotate based on the plane fitted to a group of atoms."""
 
     def __init__(self, atomlist):
+        """Initialize a PlaneRotate with the indices of atoms."""
         self.atomlist = atomlist
 
     def rotate_func(self, data):
+        """Return a rotation matrix that aligns the normal vector of a plane fitted to the specified atoms along the z-axis, and the first two atoms in the plane along the x and y axes."""
         atoms = np.array([data[i, :] for i in self.atomlist])
 
         U, s, V = np.linalg.svd(atoms, full_matrices=False)
@@ -582,10 +619,12 @@ class StaticReflect(Reflect):
     '''Reflect across a statically defined plane'''
 
     def __init__(self, normal):
+        """Initialize a StaticReflect with a fixed normal vector for the reflection plane."""
         # force the normal to have unit norm
         self.normal = normal / np.linalg.norm(normal)
 
     def reflect_func(self, data):
+        """Return the fixed normal vector for the reflection plane."""
         return self.normal
 
 
@@ -593,10 +632,12 @@ class BondReflect(Reflect):
     '''Reflect across normal defined by bond'''
 
     def __init__(self, iatom, jatom):
+        """Initialize a BondReflect with the indices of two atoms that define the normal vector for the reflection plane."""
         self.iatom = iatom
         self.jatom = jatom
 
     def reflect_func(self, data):
+        """Return the normal vector for the reflection plane defined by the bond between the two specified atoms."""
         return data[self.jatom, :] - data[self.iatom, :]
 
 
@@ -605,9 +646,11 @@ class PlaneReflect(Reflect):
     Undefine results if used away from origin'''
 
     def __init__(self, atomlist):
+        """Initialize a PlaneReflect with the indices of atoms that define the plane for reflection."""
         self.atomlist = atomlist
 
     def reflect_func(self, data):
+        """Return the normal vector for the reflection plane defined by a plane fitted to the specified atoms."""
         atoms = np.array([data[i, :] for i in self.atomlist])
 
         U, s, V = np.linalg.svd(atoms, full_matrices=False)
@@ -621,12 +664,16 @@ class PlaneReflect(Reflect):
 # Compound classes (for when a molecule needs to be shifted to origin and then returned)    #
 #-------------------------------------------------------------------------------------------#
 class ShiftedOperation(Operation):
+    """Compound operation that shifts the molecule to the origin, applies the specified operation, and then shifts back to the original position. 
+    \nUseful for operations that need to be applied around a specific point, such as rotations around an axis defined by a pair of atoms."""
 
     def __init__(self, shift, operation):
+        """Initialize a ShiftedOperation with a specified shift operation and the main operation to be applied."""
         self.shift = shift
         self.operation = operation
 
     def __call__(self, data):
+        """Apply the compound operation by first shifting the molecule to the origin, then applying the main operation, and finally shifting back to the original position."""
         displacement = self.shift.displacement_func(data)
         unshift = StaticTranslate(-displacement)
 
@@ -635,9 +682,11 @@ class ShiftedOperation(Operation):
         unshift(data)
 
     def iscomposable(self, op):
+        """Return false as compound operations cannot be composed."""
         return False
 
     def compose(self, op):
+        """Disable composing compound operations."""
         raise Exception("Cannot compose Compound classes")
 
 
@@ -648,9 +697,11 @@ class OperationList(object):
     '''Set of operations that automatically composes appended operations, when possible'''
 
     def __init__(self):
+        """Initialize an OperationList with an empty list of operations."""
         self.operations = []
 
     def append(self, op):
+        """Append an operation to the list, automatically composing it with the last operation if they are composable."""
         if len(self) == 0:
             self.operations.append(op)
         elif self[-1].iscomposable(op):
@@ -659,12 +710,15 @@ class OperationList(object):
             self.operations.append(op)
 
     def __len__(self):
+        """Return the number of operations in the list."""
         return len(self.operations)
 
     def __getitem__(self, key):
+        """Return the operation at the specified index."""
         return self.operations[key]
 
     def __iter__(self):
+        """Return an iterator over the operations in the list."""
         return iter(self.operations)
 
 
@@ -696,6 +750,7 @@ def usage():
 
 
 def consume_arguments(arguments, geom):
+    """Parse the command-line arguments to create a list of operations to be applied to the geometry."""
     options = arguments[:]
     ops = OperationList()
 
@@ -838,6 +893,9 @@ def consume_arguments(arguments, geom):
 
 
 def orient(arglist):
+    """Main function to read in geometries from xyz files.
+    \nParse the command-line arguments to determine the operations to be applied, and apply those operations to the geometries."""
+    
     if len(arglist) == 0:
         usage()
         return
@@ -914,6 +972,8 @@ def orient(arglist):
     return geoms
 
 def orient2(fakefile,arglist):
+    """Main function to read in geometries from xyz files.
+    \nParse the command-line arguments to determine the operations to be applied, and apply those operations to the geometries."""
     if len(arglist) == 0:
         usage()
         return
@@ -990,6 +1050,7 @@ def orient2(fakefile,arglist):
     return geoms
 
 def call_orient2(fakefile,arglist):
+    """Helper function to call orient2 and return the resulting geometry as a string in XYZ format."""
     geoms = orient2(fakefile,arglist)
     for g in geoms:
         return g.print2()

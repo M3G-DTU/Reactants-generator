@@ -2,6 +2,7 @@ from molrearr.read_xyz2list import *
 from molrearr.fast_call_orient import *
 
 def new_cartesian(mol, origin_point):
+    """Translate the molecule to a new Cartesian coordinate system centered at the specified origin point."""
     x=float(origin_point[0])*(-1)
     y=float(origin_point[1])*(-1)
     z=float(origin_point[2])*(-1)
@@ -10,7 +11,9 @@ def new_cartesian(mol, origin_point):
     target=orient_file(mol,args)
     
     return target
+
 def center_rotate(mol,origin_point,anglelist):
+    """Rotate the molecule around the specified origin point by the given angles in the x, y, and z directions."""
     origin=new_cartesian(mol, origin_point)
     a=float(anglelist[0])
     b=float(anglelist[1])

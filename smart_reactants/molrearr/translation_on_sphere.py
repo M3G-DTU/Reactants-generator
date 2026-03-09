@@ -4,6 +4,7 @@ from molrearr.fast_call_orient import *
 from molrearr.read_xyz2list import *
 
 def translation_on_sphere(mol,start,center,step_theta,step_phi):
+    """Translate a molecule on a spherical surface defined by a center point and angular steps."""
     target1=step_on_sphere(start,center,math.pi/180*step_theta,math.pi/180*step_phi)
     vector1=np.subtract(target1,start)
     
