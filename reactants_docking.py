@@ -38,7 +38,7 @@ def argument_parser():
                         help='the distance threshold for restricting movements (in angstroms)')
     parser.add_argument('-sfl', '--strict_filter_level', type=int, default=3,
                         help='the level of strict filter >=3, higher is stricter')
-    parser.add_argument('-d', '--descriptor', type=str, default='dual', choices=['fukui', 'dual', 'ElNuc'],
+    parser.add_argument('-d', '--descriptor', type=str, default='ElNuc', choices=['fukui', 'dual', 'ElNuc'],
                         help='the descriptor to use for filtering (fukui, dual or ElNuc)')
     parser.add_argument('--fukui_cutoff', type=float, default=0.02,
                         help='the cutoff value for the Fukui function when using the fukui descriptor (default: 0.02)')
@@ -556,7 +556,6 @@ for interaction in potential_interactions_2_1:
 # Now we run the molecule rearrangement for each potential interaction and save the intermediate XYZ files
 
 info_file += f'\nIntermediate XYZ files produced for potential interactions between {out_file1} and {out_file2}:\n'
-
 for a_index, b_index in potential_interactions_1_2:
     elec_atom = next(atom for atom in top_elec1 if int(atom['Atom'].split('(')[1].split(')')[0]) == a_index)
     nuc_atom = next(atom for atom in top_nuc2 if int(atom['Atom'].split('(')[1].split(')')[0]) == b_index)
