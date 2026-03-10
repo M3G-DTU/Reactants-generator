@@ -14,7 +14,7 @@ The key components of the script are:
 
 ## Prepare Input Files
 
-	•	Molecular .out files: You need two .out files for the molecules you want to dock, e.g., benzo.out and new1.out (specify using the '-o' or '--out_files' options). Alternatively, you can use XYZ files to specify the molecular coordinates directly (this is done using the '-xyz' or '--xyz_files' options).
+	•	Molecular .out files: You need two .out files for the molecules you want to dock, e.g., benzo.out and new1.out (specify using the `-o` or `--out_files` options). Alternatively, you can use XYZ files to specify the molecular coordinates directly (this is done using the `-xyz` or `--xyz_files` options).
 
 ## Script Functions
 

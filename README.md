@@ -25,7 +25,7 @@ To see available options use:
 python reactants_docking.py --help
 ```
 
-The only required input is the .out files for the reactants using the '-o' or '--out_files' options. So the most basic command to run the script is:
+The only required input is the .out files for the reactants using the `-o` or `--out_files` options. So the most basic command to run the script is:
 
 ```bash
 python reactants_docking.py -o path/to/reactant1.out path/to/reactant2.out

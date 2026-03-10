@@ -405,8 +405,19 @@ if args.xyz_files is not None:
     xyz_file1=args.xyz_files[0]
     xyz_file2=args.xyz_files[1]
 else:
-    xyz_file1=out_file1.replace('.out','.xyz')
-    xyz_file2=out_file2.replace('.out','.xyz')
+    # Create the XYZ files with the function xyz_from_out if they are not provided
+    xyz_file1 = out_file1.rsplit('.', 1)[0] + '.xyz'
+    xyz_file2 = out_file2.rsplit('.', 1)[0] + '.xyz'
+    for file in [out_file1, out_file2]:
+        if not os.path.exists(file):
+            raise FileNotFoundError(f"The output file {file} does not exist.")
+    for xyz_file, out_file in zip([xyz_file1, xyz_file2], [out_file1, out_file2]):
+        if not os.path.exists(xyz_file):
+            xyz_list = xyz_from_out(out_file)
+            with open(xyz_file, "w") as f:
+                f.write(f"{xyz_list[-1]}\nXYZ file created from {out_file}\n")
+                for atom, coords in zip(xyz_list[0], xyz_list[1]):
+                    f.write(f"{atom} {coords[0]} {coords[1]} {coords[2]}\n")
 
 # Set cutoff criteria
 elec_cutoff = args.elec_cutoff

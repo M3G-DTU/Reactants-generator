@@ -78,7 +78,7 @@ When the script runs, it will:
 
 ## Output Files
 
-The script will generate .xyz files in the output directory which can be specified using the '--output_dir' option. Each file represents a new molecular arrangement, with naming conventions based on the rearranged molecules and atoms involved.
+The script will generate .xyz files in the output directory which can be specified using the `--output_dir` option. Each file represents a new molecular arrangement, with naming conventions based on the rearranged molecules and atoms involved.
 
 
 ## Error Handling
