@@ -314,26 +314,45 @@ def xyz_from_out(outfile: str) -> list:
     xyz_list = [atoms, xyz, '', len(atoms)]
     return xyz_list
 
-def find_potential_interactions(filtered_atoms_elec: list, filtered_atoms_nuc: list, elec_cutoff: float, nuc_cutoff: float) -> list:
+def find_potential_interactions(filtered_atoms_elec: list, filtered_atoms_nuc: list, elec_cutoff: float, nuc_cutoff: float, descriptor: str) -> list:
     """Finds indices of potential interactions between electrophilic and nucleophilic atoms based on their values and cutoffs.
     \nparams:
     \n    filtered_atoms_elec: a list of dictionaries containing the filtered electrophilic atoms and their properties
     \n    filtered_atoms_nuc: a list of dictionaries containing the filtered nucleophilic atoms and their properties
     \n    elec_cutoff: the cutoff value for electrophilic interactions
     \n    nuc_cutoff: the cutoff value for nucleophilic interactions
+    \n    descriptor: the descriptor used for filtering (fukui, dual or ElNuc)
     \nreturns:
     \n    interactions: a list of tuples containing the indices of potential interactions between electrophilic and nucleophilic atoms"""
     interactions = []
+    # if either of the lists is empty, we can return an empty list of interactions
+    if not filtered_atoms_elec or not filtered_atoms_nuc:
+        return interactions
+    
+    # Determine the keys to use based on the descriptor
+    if descriptor == 'ElNuc':
+        key_elec = 'Electrophilicity'
+        elec_cutoff *= -1 # Reverse cutoff for electrophilicity
+        key_nuc = 'Nucleophilicity'
+    elif descriptor == 'dual':
+        key_elec = 'f(2)'
+        key_nuc = 'f(2)'
+    elif descriptor == 'fukui':
+        key_elec = 'f+'
+        elec_cutoff *= -1 # Reverse cutoff for electrophilicity
+        key_nuc = 'f-'
+    
+    # Find potential interactions based on the cutoff criteria
     for i, atom1 in enumerate(filtered_atoms_elec):
         elec_atom_index = int(atom1['Atom'].split('(')[1].split(')')[0])
-        elec_atom_value = atom1['Electrophilicity']
+        elec_atom_value = atom1[key_elec]
         if i == 0:
             most_electrophilic_value = elec_atom_value
-            most_nucleophilic_value = filtered_atoms_nuc[0]['Nucleophilicity']
-        if elec_atom_value >= most_electrophilic_value - elec_cutoff:
+            most_nucleophilic_value = filtered_atoms_nuc[0][key_nuc]
+        if elec_atom_value >= most_electrophilic_value + elec_cutoff:
             for atom2 in filtered_atoms_nuc:
                 nuc_atom_index = int(atom2['Atom'].split('(')[1].split(')')[0])
-                nuc_atom_value = atom2['Nucleophilicity']
+                nuc_atom_value = atom2[key_nuc]
                 if nuc_atom_value <= most_nucleophilic_value + nuc_cutoff:
                     interactions.append((elec_atom_index, nuc_atom_index))
                 else:
@@ -518,8 +537,8 @@ info_file += f'Electrophilic cutoff: {elec_cutoff}\n'
 info_file += f'Nucleophilic cutoff: {nucl_cutoff}\n\n'
 
 # Find potential interactions and produce intermediate XYZ files
-potential_interactions_1_2 = find_potential_interactions(top_elec1, top_nuc2, elec_cutoff, nucl_cutoff)
-potential_interactions_2_1 = find_potential_interactions(top_elec2, top_nuc1, elec_cutoff, nucl_cutoff) 
+potential_interactions_1_2 = find_potential_interactions(top_elec1, top_nuc2, elec_cutoff, nucl_cutoff, descriptor)
+potential_interactions_2_1 = find_potential_interactions(top_elec2, top_nuc1, elec_cutoff, nucl_cutoff, descriptor) 
 print("Potential interactions found")
 # Add potential interactions to the info file
 info_file += f'Potential interactions between {out_file1} and {out_file2}:\n'
