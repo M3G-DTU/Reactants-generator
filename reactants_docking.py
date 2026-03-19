@@ -12,6 +12,7 @@ from molrearr.optimization import *
 from molrearr.read_xyz2list import *
 
 # Argument Parser
+
 def argument_parser():
     parser = argparse.ArgumentParser(description='A script to perform reactant docking based on the output of FDL or FMO calculations in AMS.')
     parser.add_argument('-o', '--out_files', type=str, required=True, nargs=2, 
@@ -46,7 +47,8 @@ def argument_parser():
                         help='the name of the info file to save the candidates and settings information (default: candidates.info)')
     return parser.parse_args()
 
-#functions
+# Instract information
+
 def molecule_info_fdl(out_file: str) -> dict:
     """Extracts condensed local electrophilicity and nucleophilicity information from the output file of FDL calculation.
     \nparams:
@@ -165,7 +167,8 @@ def molecule_info_fmo(out_file: str) -> dict:
             atom_properties['FMO'][header].append(float(value))
     return atom_properties
 
-# filter
+# Filters - Descriptors
+
 def get_sorted_indexes(directory: dict, key_name: str, reverse: bool = False) -> list:
     return sorted(
         range(len(directory[key_name])),
@@ -290,6 +293,8 @@ def keep_top_candidates(filtered_atoms: list, n_candidates=0, add_aditional_H=No
         chosen_candidates.extend(H_atoms[:add_aditional_H])
     return chosen_candidates
 
+# Get xyz coordinates
+
 def xyz_from_out(outfile: str) -> list:
     """Generates the XYZ list necessary for the rest of the script from a FDL or FMO calculation in AMS."""
     with open(outfile, "r", encoding='utf-8', errors='replace') as f:
@@ -313,6 +318,8 @@ def xyz_from_out(outfile: str) -> list:
     # Now we create 
     xyz_list = [atoms, xyz, '', len(atoms)]
     return xyz_list
+
+# Map the interactions
 
 def find_potential_interactions(filtered_atoms_elec: list, filtered_atoms_nuc: list, elec_cutoff: float, nuc_cutoff: float, descriptor: str) -> list:
     """Finds indices of potential interactions between electrophilic and nucleophilic atoms based on their values and cutoffs.
@@ -361,6 +368,8 @@ def find_potential_interactions(filtered_atoms_elec: list, filtered_atoms_nuc: l
             continue
     return interactions
 
+# Merge XYZ files for final docked structure(s)
+
 def merge_xyz(filename: str, mol_1: list, mol_2: list) -> None:
     with open(filename,"w") as merge_file:
         merge_file.write(str(int(mol_1[-1])+int(mol_2[-1]))+'\n')
@@ -371,6 +380,8 @@ def merge_xyz(filename: str, mol_1: list, mol_2: list) -> None:
             merge_file.write("{:<3}{:17.9f}{:17.9f}{:17.9f}\n".format(mol_1[0][index],float(mol_1[1][index][0]),float(mol_1[1][index][1]),float(mol_1[1][index][2])))
         for index in range(int(mol_2[-1])):
             merge_file.write("{:<3}{:17.9f}{:17.9f}{:17.9f}\n".format(mol_2[0][index],float(mol_2[1][index][0]),float(mol_2[1][index][1]),float(mol_2[1][index][2])))
+
+# Main function for rearrangement
 
 def molecule_rearrangement(xyz_file1: str, xyz_file2: str, hotspot1_index: int, hotspot2_index: int, 
                            output_file: str, info_file: str, restrict_distance: float, strict_filter_level: int, minimal_distance: float) -> str:
