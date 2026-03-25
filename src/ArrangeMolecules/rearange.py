@@ -2,13 +2,17 @@
 # This is used to generate different conformations of the reactant complex for the reaction prediction model.
 
 import numpy as np
-import geatpy as ea
 from scipy import optimize
 from ase import Atoms
 from ase.io import read, write
+from xtb.ase.calculator import XTB
+from rdkit import Chem
+from rdkit.Chem import AllChem
+from rdkit.Chem import Draw, rdDetermineBonds
+from mace.calculators import MACECalculator
 
 class TranslateMoleculeSphere:
-    def __init__(self, molecule1: Atoms, molecule2: Atoms, atom_1: int, atom_2: int):
+    def __init__(self, molecule1: Atoms, molecule2: Atoms, atom_1: int, atom_2: int, el_calculator='MACE'):
         self.molecule1_init = molecule1  # The molecule around which the other molecule will be translated (the "anchor" molecule)
         self.molecule2_init = molecule2  # The molecule which will be translated around the anchor molecule
         self.atom_1 = atom_1        # Atom index of molecule 1 
@@ -19,7 +23,7 @@ class TranslateMoleculeSphere:
         #self.sphere_radius = np.max(np.linalg.norm(self.molecule1_init.positions - self.sphere_center, axis=1)) - 1# + sphere_radius_buffer # Adding a buffer.
         
         self.sphere_center = self.molecule1_init[self.atom_1].position # Center of the sphere is the position of the atom of interest in molecule 1
-        self.sphere_radius = 3.0
+        self.sphere_radius = 2.5
 
         # Place molecule 2 at a random position on the surface of the sphere around molecule 1
         # set seed
@@ -36,7 +40,22 @@ class TranslateMoleculeSphere:
         # Now for the movable molecules
         self.molecule1 = self.molecule1_init.copy()
         self.molecule2 = self.molecule2_init.copy()
+        # Add calculator to get charges for electrostatic repulsion
+        if el_calculator == 'MACE':
+            self.molecule1.calc = MACECalculator()
+            self.molecule2.calc = MACECalculator()
+        else:
+            self.molecule1.calc = XTB(method='GFN2-xTB')
+            self.molecule2.calc = XTB(method='GFN2-xTB')
     # Utility functions
+    def create_rdkit_molecule(self, ase_molecule: Atoms):
+        """Convert an ASE Atoms object to an RDKit molecule."""
+        rdkit_molecule = Chem.RWMol()
+        for atom in ase_molecule:
+            rdkit_molecule.AddAtom(Chem.Atom(atom.number))
+        rdDetermineBonds.DetermineConnectivity(rdkit_molecule)
+        return rdkit_molecule
+    
     def normalize_vector(self, vector):
         return vector / np.linalg.norm(vector)
     
@@ -84,14 +103,13 @@ class TranslateMoleculeSphere:
                          [s, c, 0],
                          [0, 0, 1]])
 
-    def center_rotate(self, molecule: Atoms, center: list, alpha: float, beta: float, gamma: float):
-        """Rotate the molecule around a given center using Euler angles for x, y, z axes. Unit of angles is radians."""
-        origin = -1 * np.array(center) # Translate to origin
-        molecule.positions += origin
-        rotation_matrix = self.Rz(gamma) @ self.Ry(beta) @ self.Rx(alpha) # Combined rotation matrix
-        molecule.positions = molecule.positions @ rotation_matrix.T # Apply rotation
-        molecule.positions -= origin # Translate back to original center
-        
+    def rotation_matrix(self, alpha, beta, gamma):
+        """Combined rotation matrix for rotations around x, y, and z axes. Units of angles is radians."""
+        return self.Rz(gamma) @ self.Ry(beta) @ self.Rx(alpha)
+    
+    def rotate_molecule(self, molecule: Atoms, center: list, alpha: float, beta: float, gamma: float):
+        R = self.rotation_matrix(alpha, beta, gamma)
+        return (molecule - center) @ R.T + center
 
     def translate_on_sphere(self, molecule: Atoms, initial_point: list, center: list, step_theta: float, step_phi: float):
         """Translate the molecule by moving it along the surface of a sphere."""
@@ -101,308 +119,66 @@ class TranslateMoleculeSphere:
         # Translate the molecule by the calculated translation vector
         for atom in molecule:
             atom.position += translation_vector
+        return molecule.positions
 
-    def drone_translate(self, step_theta: float, step_phi: float, alpha: float, beta: float, gamma: float):
-        """Translate molecule2 around molecule1 by moving it along the surface of a sphere and applying rotations."""
-        self.translate_on_sphere(self.molecule2, self.molecule2[self.atom_2].position, self.sphere_center, step_theta, step_phi)
-        self.center_rotate(self.molecule2, self.molecule2[self.atom_2].position, alpha, beta, gamma)
+    def lennard_jones_repulsion(self, R1, R2, sigma=10):
+        diff = R1[:,None,:] - R2[None,:,:]
+        r = np.linalg.norm(diff, axis=-1)
+        return np.sum((sigma / r)**12)
 
-    def locate_hindrance_atoms(self):
-        distances = []
-        atom1 = self.molecule1[self.atom_1]
-        atom2 = self.molecule2[self.atom_2]
-        for index, atom in enumerate(self.molecule1):
-            if index == self.atom_1:  # Skip the atom of interest in molecule 1
-                continue
-            distance = np.linalg.norm(atom.position - atom2.position)
-            distances.append(distance)
-        for index, atom in enumerate(self.molecule2):
-            if index == self.atom_2:  # Skip the atom of interest in molecule 2
-                continue
-            distance = np.linalg.norm(atom.position - atom1.position)
-            distances.append(distance)
-        return distances # List of distances for all atoms in both molecules
+    def electrostatic_repulsion(self, R1, R2, q1, q2):
+        diff = R1[:, None, :] - R2[None, :, :]
+        r = np.linalg.norm(diff, axis=-1)
 
-    def distances_to_atom_of_interest(self):
-        distances = []
-        atom2 = self.molecule2[self.atom_2]
-        for index, atom in enumerate(self.molecule1):
-            if index == self.atom_1:  # Skip the atom of interest in molecule 1
-                continue
-            distance = np.linalg.norm(atom.position - atom2.position)
-            distances.append(distance)
-        return distances # List of distances for all atoms in molecule 1 to the atom of interest in molecule 2
+        qprod = np.abs(q1[:, None] * q2[None, :])  # force repulsion
+        return np.sum(qprod / r)
 
-    def locate_hindrance_molecule2(self):
-        distances = []
-        atom1 = self.molecule1[self.atom_1]
-        for index, atom in enumerate(self.molecule2):
-            if index == self.atom_2:  # Skip the atom of interest in molecule 2
-                continue
-            distance = np.linalg.norm(atom.position - atom1.position)
-            distances.append(distance)
-        return distances # List of distances for all atoms in molecule 2 to the atom of interest in molecule 1
-
-    def check_hindrance(self, filter_size: float = 1.0):
-        """Check number of atom is between the two atoms of interest"""
-        n, m = 0, 0
-
-        vector_m1_to_m2 = self.molecule2[self.atom_2].position - self.molecule1[self.atom_1].position
-        distance = np.linalg.norm(vector_m1_to_m2)
-        for index, atom in enumerate(self.molecule1):
-            # Check if distance between atom and molecule 2 is less than the distance between the two atoms of interest
-            if index == self.atom_1:  # Skip the atom of interest in molecule 1
-                continue
-            
-            if np.linalg.norm(atom.position - self.molecule2[self.atom_2].position) < distance:
-                n += 1 
-                # Angle check
-                angle_of_interest = self.angle_between_vectors(atom.position - self.molecule2[self.atom_2].position, vector_m1_to_m2)
-                if angle_of_interest < 10*filter_size or angle_of_interest > 180-10*filter_size:
-                    m += 1
-        return n, m # n is the number of atoms in molecule 1 that are between the two atoms of interest, m is the number of those atoms that are also within a certain angle threshold (i.e. more likely to be hindrance)
-    
-    def locate_closest_atoms(self, threshold: float = 1.6):
-        """Locate number of atoms in both molecules that are within a certain distance threshold of each other. Exclude the atoms of interest."""
-        count_close = 0
-
-        for index1, atom1 in enumerate(self.molecule1):
-            if index1 == self.atom_1:  # Skip the atom of interest in molecule 1
-                continue
-            for index2, atom2 in enumerate(self.molecule2):
-                if index2 == self.atom_2:  # Skip the atom of interest in molecule 2
-                    continue
-                distance = np.linalg.norm(atom1.position - atom2.position)
-                if distance < threshold:
-                    count_close += 1
-
-        return count_close
-
-    def optimization_geat(self):
-        @ea.Problem.single
-        def objective_function(Vars, minimal_allowed_distance: float = 1.6, filter_size: float = 1.0):
-            """Objective function to minimize the number of atoms between the two atoms of interest and maximize the number of close contacts."""
-            # Parse variables
-            step_theta, step_phi, alpha, beta, gamma = Vars
-            # Reset molecule positions to initial state before applying transformations
-            self.molecule1 = self.molecule1_init.copy() # Reset molecule 1 to initial position
-            self.molecule2 = self.molecule2_init.copy() # Reset molecule 2 to initial position
-
-            # Apply transformations based on the decision variables
-            self.drone_translate(step_theta, step_phi, alpha, beta, gamma)
-
-            # Calculate
-            distances = self.locate_hindrance_atoms()
-            weak_hindrance_count, strong_hindrance_count = self.check_hindrance(filter_size)
-            # We want to check the squared distance to penalize closer contacts more heavily
-            # We want to have the fewest number of atoms between the two atoms of interest, to create a cleaner reactant complex.
-            min_distance = min(distances) if distances else float('inf')
-
-            # Objective
-            score = 0
-
-            if distances:
-                min_distance = min(distances)
-                # We want to maximize the minimum distance between any atom in molecule 2 and the atom of interest in molecule 1, to reduce hindrance.
-                score += min_distance**3  # Square the distance to penalize closer contacts more heavily
-            else:
-                min_distance = float('inf')
-                score += 1000  # If there are no other atoms, give a high score
-            
-            # We want to penelize having the distance between the two atoms compared to distances of other atoms,
-            # to encourage the two atoms of interest to be closer together than any other atoms, which would indicate a cleaner reactant complex.
-            #score -= weak_hindrance_count  # Penalize having more atoms between
-            #print(len(distances), min_distance, minimal_allowed_distance)
-            #if min_distance < minimal_allowed_distance:
-            #    score -= 1000  # Penalize heavily if the minimum distance is below the threshold, to avoid steric clashes.
-            #else:
-            #    self.count += 1
-            # Constraints
-            CV = np.array([
-                min_distance - minimal_allowed_distance, # Ensure that the minimum distance between any atom in molecule 2 and the atom of interest in molecule 1 is above a certain threshold to avoid steric clashes
-                1 - weak_hindrance_count, # Dont allow more than 1 atom in molecule 1 to be between the two atoms of interest
-            #     (-1) * strong_hindrance_count, # Dont allow any atoms in molecule 2 to be within the angle threshold (i.e. strong hindrance)
-                ]) 
-            print(score)
-            return score, CV
+    def objective_combined(self, Vars):
+        step_theta, step_phi, alpha, beta, gamma = Vars
         
-        # Define the optimization problem
-        # Bounds for the decision variables: step_theta, step_phi, alpha, beta, gamma
-        upper_bound = [ np.pi,  np.pi/2,  np.pi,  np.pi/2,  np.pi]  # Max rotation of 360 degrees and max translation of 5 units
-        lower_bound = [-np.pi, -np.pi/2, -np.pi, -np.pi/2, -np.pi]  # Min rotation of 0 degrees and min translation of -5 units
-        problem = ea.Problem(name='Molecule Arrangement Optimization',
-                             M=1,  # Number of objectives
-                             maxormins=[-1],  # Maximize the objective function
-                             #maxormins=[1],  # Minimize the objective function
-                             Dim=5,  # Number of decision variables (step_theta, step_phi, alpha, beta, gamma)
-                             varTypes=[0, 0, 0, 0, 0],  # All variables are continuous
-                             lb=lower_bound,  # Lower bounds for decision variables
-                             ub=upper_bound,  # Upper bounds for decision variables
-                             evalVars=objective_function)  # Objective function to evaluate
+        # --- Translation ---
+        new_center = self.step_on_sphere(self.molecule2[self.atom_2].position, self.sphere_center, step_theta, step_phi)
 
-        # Run the optimization algorithm
-        algorithm = ea.soea_SEGA_templet(problem,
-                                                  ea.Population(Encoding='RI', NIND=50),  # Population size
-                                                  MAXGEN=100,  # Maximum number of generations
-                                                  logTras=1,    # Log every generation
-                                                  trappedValue=1e-6,    # Threshold for convergence
-                                                  maxTrappedCount=10)   # Maximum number of generations to wait for convergence
-        res = ea.optimize(algorithm, seed=1, verbose=False, drawing=0, outputMsg=False, drawLog=False, saveFlag=False, dirName='result')
-        return res
+        # Shift molecule 2 to the new center
+        translation_vector = new_center - self.molecule2[self.atom_2].position
+        mol2_position = self.molecule2.positions + translation_vector
 
+        # --- Rotation ---
+        mol2_position = self.rotate_molecule(mol2_position, new_center, alpha, beta, gamma)
 
-    def optimization_rotate(self):
-        # Take the best solution from the geat optimization and rotate the molecule accordingly, to ensure an optimal arrangement of the reactant complex.
-        @ea.Problem.single
-        def objective_function(Vars):
-            alpha, beta, gamma = Vars
-            self.center_rotate(self.molecule2, self.molecule2[self.atom_2].position, alpha, beta, gamma)
-            # Get the minimum distance between atom of interest in molecule 1 and any atom in molecule 2
-            distances = self.locate_hindrance_molecule2()
-            
-            score = min(distances)**2 # We want to maximize the minimum distance between any atom in molecule 2 and the atom of interest in molecule 1, to reduce hindrance.
-            return score, np.array([])  # We want to maximize the minimum distance between
-        
-        # Define the optimization problem
-        upper_bound = [ np.pi,  np.pi/2,  np.pi]  # Max rotation of 360 degrees
-        lower_bound = [-np.pi, -np.pi/2, -np.pi]  # Max rotation of 360 degrees
-        problem = ea.Problem(name='Molecule Rotation Optimization',
-                             M=1,  # Number of objectives
-                             maxormins=[-1],  # Maximize the objective function
-                             Dim=3,  # Number of decision variables (alpha, beta, gamma)
-                             varTypes=[0, 0, 0],  # All variables are continuous
-                             lb=lower_bound,  # Lower bounds for decision variables
-                             ub=upper_bound,  # Upper bounds for decision variables
-                             evalVars=objective_function)  # Objective function to evaluate
-        # Run the optimization algorithm
-        algorithm = ea.soea_SEGA_templet(problem,
-                                                  ea.Population(Encoding='RI', NIND=50),  # Population size
-                                                  MAXGEN=100,  # Maximum number of generations
-                                                  logTras=1,    # Log every generation
-                                                  trappedValue=1e-6,    # Threshold for convergence
-                                                  maxTrappedCount=10)   # Maximum number of generations to wait for convergence
-        res = ea.optimize(algorithm, seed=1, verbose=False, drawing=0, outputMsg=False, drawLog=False, saveFlag=False, dirName='result')
-#        print(self.count)
-        return res
+        mol1_position = self.molecule1.positions
 
-    def optimization_scipy(self):
-        # Use scipy optimization to optimize the arrangement of the reactant complex, as an alternative to geatpy.
-        def objective_function(Vars):
-            step_theta, step_phi, alpha, beta, gamma = Vars
-            self.drone_translate(step_theta, step_phi, alpha, beta, gamma)
-            score = 0
-            # reduce steric hindrance by not allowing atoms too close to each other
-            distances = self.locate_hindrance_atoms()
-            sum_squared_distances_inv = sum(1/d**2 for d in distances if d > 0)  # Inverse of squared distances to penalize closer contacts more heavily
-            score += sum_squared_distances_inv
-            #if min(distances) < 1.6:
-            #    score += 100
-            return score
-            
+        # --- Repulsion LJ ---
+        rep = self.lennard_jones_repulsion(mol1_position, mol2_position)
 
-        # Bounds for the decision variables: step_theta, step_phi, alpha, beta, gamma
-        upper_bound = [ np.pi,  np.pi/2,  np.pi,  np.pi/2,  np.pi]  
-        lower_bound = [-np.pi, -np.pi/2, -np.pi, -np.pi/2, -np.pi] 
-        bounds = optimize.Bounds(lower_bound, upper_bound)
+        # --- Electrostatic repulsion ---
+        # Get charges
+        q1 = self.molecule1.get_charges()  # Using atomic numbers as a proxy for charge
+        q2 = self.molecule2.get_charges()
+        rep += self.electrostatic_repulsion(mol1_position, mol2_position, q1, q2)
+        return rep
 
-        # Initial guess (can be random or based on some heuristic)
-        initial_guess = [0.0, 0.0, 0.0, 0.0, 0.0]
-
-        result = optimize.differential_evolution(objective_function, bounds=bounds, strategy='best1bin', maxiter=100, popsize=15, tol=1e-6, seed=42)
-        return result
-
-    def angles_to_unit_vector(self, theta: float, phi: float):
-        """Convert spherical angles to a unit vector."""
-        x = np.sin(theta) * np.cos(phi)
-        y = np.sin(theta) * np.sin(phi)
-        z = np.cos(theta)
-        return np.array([x, y, z])
-    
-    def normalize_vector(self, vector):
-        """Normalize a vector to have unit length."""
-        norm = np.linalg.norm(vector)
-        if norm == 0:
-            return vector
-        return vector / norm
-
-    def angles_to_unit(self, theta, phi):
-        return np.array([
-            np.sin(theta) * np.cos(phi),
-            np.sin(theta) * np.sin(phi),
-            np.cos(theta)
-            ])
-
-    def softmin(self, x, alpha=20):
-        return -np.log(np.sum(np.exp(-alpha * x))) / alpha
-
-    def objective_direction(self, angles):
-        theta, phi = angles
-        u = self.angles_to_unit(theta, phi)
-
-        projections = self.molecule2.positions @ u
-        return -self.softmin(projections)  # maximize minimum projection
-
-    def rotate_to_optimal_direction(self, angles):
-        # rotation to molecule 2 around atom of interest in molecule 2
-        theta, phi = angles
-        u = self.angles_to_unit(theta, phi)
-        projections = self.molecule2.positions @ u
-        return projections
-    
     def opt_scipy_2(self):
-        # First we only do translation on spherere to find a good position, then we do a second optimization step to find the best rotation from that position.
-        #def objective_function_translate(Vars):
-        #    step_theta, step_phi = Vars
-        #    self.translate_on_sphere(self.molecule2, self.molecule2[self.atom_2].position, self.sphere_center, step_theta, step_phi)
-        #    distances = self.distances_to_atom_of_interest()
-        #    score = min(distances)
-        #    print((-1) * score)
-        #    return (-1) * score
-        # f(x) = Lennard-Jones Repulsion
-        def objective_function_translate(Vars, p: float = 6.0):
-            step_theta, step_phi = Vars
-            step_theta = np.clip(step_theta, 1e-8, np.pi - 1e-8)  # Avoid exactly 0 or pi to prevent singularities
 
-            # Define position of molecule 2 based on the current step on the sphere
-            x = self.molecule2[self.atom_2].position
-            self.translate_on_sphere(self.molecule2, self.molecule2[self.atom_2].position, self.sphere_center, step_theta, step_phi)
-            distances = np.linalg.norm(self.molecule1.positions - x, axis=1)
-            score = np.sum(1.0 / distances**p)  # Inverse of squared distances to penalize closer contacts more heavily
-            return score
-
-        #def objective_function_rotate(Vars):
-        #    alpha, beta, gamma = Vars
-        #    self.center_rotate(self.molecule2, self.molecule2[self.atom_2].position, alpha, beta, gamma)
-        #    # We want to rotate the molecule such that the minimum distance between atom of interest in molecule 1, and other atoms in molecule 2 (not the atom of interest) is maximized, to reduce hindrance.
-        #    distances = self.locate_hindrance_molecule2()
-        #    # Lennard-Jones Repulsion
-        #    score = np.sum(1/np.array(distances)**6)  # Inverse of squared distances to penalize closer contacts more heavily
-        #    return score
-        def objective_function_rotate(Vars):
-            projections = self.rotate_to_optimal_direction(Vars)
-            return -self.softmin(projections)  # maximize minimum projection
         # Bounds for the decision variables
-        upper_bound_translate = [ np.pi/2,  np.pi]  
-        lower_bound_translate = [-np.pi/2, -np.pi]
-        bounds_translate = optimize.Bounds(lower_bound_translate, upper_bound_translate)
-        upper_bound_rotate = [ 100, 100]#, 100]  
-        lower_bound_rotate = [-100, -100]#, -100]
-        bounds_rotate = optimize.Bounds(lower_bound_rotate, upper_bound_rotate)
+        upper_bound = [ np.pi/2,  np.pi,  np.pi,  np.pi/2,  np.pi]  
+        lower_bound = [-np.pi/2, -np.pi, -np.pi, -np.pi/2, -np.pi]
+        bounds = optimize.Bounds(lower_bound, upper_bound)
         # Initial guess
-        initial_guess_translate = [0.0, 0.0]
-        initial_guess_rotate = [0.0, 0.0]#, 0.0]
+        initial_guess = [0.0, 0.0, 0.0, 0.0, 0.0]
         # Optimize translation first
-        result_translate = optimize.minimize(objective_function_translate, x0=initial_guess_translate, bounds=bounds_translate, method='L-BFGS-B', options={'maxiter': 100, 'ftol': 1e-6})
+        result = optimize.minimize(self.objective_combined, 
+                                             x0=initial_guess, bounds=bounds, 
+                                             method='L-BFGS-B', 
+                                             options={'maxiter': 100, 'ftol': 1e-6})
         
         # Apply the best translation to the molecule before optimizing rotation
-        best_step_theta, best_step_phi = result_translate.x
+        best_step_theta, best_step_phi, best_alpha, best_beta, best_gamma = result.x
         
         # Find the vector to apply the translation to molecule 2
-        self.translate_on_sphere(self.molecule2, self.molecule2[self.atom_2].position, self.sphere_center, best_step_theta, best_step_phi)
-
-        # Then optimize rotation from the new position
-        result_rotate = optimize.minimize(objective_function_rotate, x0=initial_guess_rotate, bounds=bounds_rotate, method='L-BFGS-B', options={'maxiter': 100, 'ftol': 1e-6})
-        return result_translate, result_rotate
+        self.molecule2.positions = self.translate_on_sphere(self.molecule2, self.molecule2[self.atom_2].position, self.sphere_center, best_step_theta, best_step_phi)
+        self.molecule2.positions = self.rotate_molecule(self.molecule2.positions, self.molecule2[self.atom_2].position, best_alpha, best_beta, best_gamma)
+        return result
 
 if __name__ == "__main__":
     # Example usage
@@ -419,20 +195,8 @@ if __name__ == "__main__":
         atom1_index -= 1 # Convert to 0-based index
         atom2_index -= 1 # Convert to 0-based index
         translator = TranslateMoleculeSphere(molecule1, molecule2, atom1_index, atom2_index)
-        result_translate, result_rotate = translator.opt_scipy_2()
-        print(result_rotate)
-        best_step_theta, best_step_phi = result_translate.x
-        best_alpha, best_beta = result_rotate.x
-        translator.step_on_sphere(translator.molecule2[translator.atom_2].position, translator.molecule1[translator.atom_1].position, best_step_theta, best_step_phi)
-        # Apply the best rotation to molecule 2
-        translator.rotate_to_optimal_direction(result_rotate.x)
-
-        #translator.rotate_to_optimal_direction(result_rotate.x)
-        #translator.drone_translate(best_step_theta, best_step_phi, best_alpha, best_beta, best_gamma)
-        ## Optionally, perform a second optimization step to fine-tune the rotation
-        #result_rotate = translator.optimization_rotate()
-        #best_alpha, best_beta, best_gamma = result_rotate['Vars'][0]
-        #translator.center_rotate(translator.molecule2, translator.molecule2[translator.atom_2].position, best_alpha, best_beta, best_gamma)
+        result = translator.opt_scipy_2()
+        best_step_theta, best_step_phi, best_alpha, best_beta, best_gamma = result.x
         merged_molecule = translator.molecule1 + translator.molecule2
         write(f'optimized_merged_molecule_{atom1_index}_{atom2_index}.xyz', merged_molecule,)
         # Append to trajectory file
@@ -441,3 +205,33 @@ if __name__ == "__main__":
             traj.write(f"Optimized merged molecule for atom pair ({atom1_index}, {atom2_index})\n")
             for atom in merged_molecule:
                 traj.write(f"{atom.symbol} {atom.position[0]} {atom.position[1]} {atom.position[2]}\n")
+
+    traj_file2 = 'conf.xyz'
+    # Remove existing trajectory file if it exists
+    if os.path.exists(traj_file2):
+        os.remove(traj_file2)
+
+    atom_pairs = [(3, 2), (3, 11), (3, 5), (3, 15), (3, 6), (3, 14), (3, 3), (3, 10), (3, 25), (3, 7), (3, 17), (3, 12), (3, 19)]
+    molecule1 = read('molecule2.xyz')
+    molecule2 = read('molecule1.xyz')
+    for atom1_index, atom2_index in atom_pairs:
+        # Convert to 0-based index
+        atom1_index -= 1
+        atom2_index -= 1
+
+        orientor = TranslateMoleculeSphere(molecule1, molecule2, atom1_index, atom2_index)
+
+        result_translate= orientor.opt_scipy_2()
+        best_step_theta, best_step_phi, best_alpha, best_beta, best_gamma = result_translate.x
+
+        #opt_rot = orientor.optimize_rotation(orientor.molecule1, orientor.atom_1, orientor.molecule2[orientor.atom_2].position)
+        #orientor.molecule1.positions = orientor.rotate_around_anchor(orientor.molecule1, opt_rot, orientor.atom_1).positions
+
+        merged_molecule = orientor.molecule1 + orientor.molecule2
+        write(f'optimized_merged_molecule_{atom1_index}_{atom2_index}.xyz', merged_molecule,)
+        with open(traj_file2, 'a') as traj:
+            traj.write(f"{len(merged_molecule)}\n")
+            traj.write(f"Optimized merged molecule for atom pair ({atom1_index}, {atom2_index})\n")
+            for atom in merged_molecule:
+                traj.write(f"{atom.symbol} {atom.position[0]} {atom.position[1]} {atom.position[2]}\n")
+        print('Next')
