@@ -9,25 +9,24 @@ from xtb.ase.calculator import XTB
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit.Chem import Draw, rdDetermineBonds
-from mace.calculators import MACECalculator
+from ase.data import covalent_radii, atomic_numbers
 
-class TranslateMoleculeSphere:
-    def __init__(self, molecule1: Atoms, molecule2: Atoms, atom_1: int, atom_2: int, el_calculator='MACE'):
+class OrientMoleculeSphere:
+    def __init__(self, molecule1: Atoms, molecule2: Atoms, atom_1: int, atom_2: int, seed: int = None, sphere_radius: float = 5.0):
         self.molecule1_init = molecule1  # The molecule around which the other molecule will be translated (the "anchor" molecule)
         self.molecule2_init = molecule2  # The molecule which will be translated around the anchor molecule
         self.atom_1 = atom_1        # Atom index of molecule 1 
         self.atom_2 = atom_2        # Atom index of molecule 2
-        self.count = 0
+        if seed is not None:
+            np.random.seed(seed)
         
         #self.sphere_center = self.molecule1_init.positions.mean(axis=0) # Center of the sphere is the mean positions of the first molecule
         #self.sphere_radius = np.max(np.linalg.norm(self.molecule1_init.positions - self.sphere_center, axis=1)) - 1# + sphere_radius_buffer # Adding a buffer.
         
         self.sphere_center = self.molecule1_init[self.atom_1].position # Center of the sphere is the position of the atom of interest in molecule 1
-        self.sphere_radius = 2.5
+        self.sphere_radius = sphere_radius
 
         # Place molecule 2 at a random position on the surface of the sphere around molecule 1
-        # set seed
-        np.random.seed(42)
         random_theta = np.random.uniform(0, 2 * np.pi)
         random_phi = np.random.uniform(0, np.pi)
         random_x = self.sphere_radius * np.sin(random_phi) * np.cos(random_theta)
@@ -41,12 +40,10 @@ class TranslateMoleculeSphere:
         self.molecule1 = self.molecule1_init.copy()
         self.molecule2 = self.molecule2_init.copy()
         # Add calculator to get charges for electrostatic repulsion
-        if el_calculator == 'MACE':
-            self.molecule1.calc = MACECalculator()
-            self.molecule2.calc = MACECalculator()
-        else:
-            self.molecule1.calc = XTB(method='GFN2-xTB')
-            self.molecule2.calc = XTB(method='GFN2-xTB')
+        #!TODO add other options. Not a lot of calculators support charge calculation, might want to find other objective functions.
+        self.molecule1.calc = XTB(method='GFN2-xTB')
+        self.molecule2.calc = XTB(method='GFN2-xTB')
+
     # Utility functions
     def create_rdkit_molecule(self, ase_molecule: Atoms):
         """Convert an ASE Atoms object to an RDKit molecule."""
@@ -82,6 +79,17 @@ class TranslateMoleculeSphere:
 
         return [x_new, y_new, z_new]
     
+    def translate_on_sphere(self, molecule: Atoms, initial_point: list, center: list, step_theta: float, step_phi: float):
+        """Translate the molecule by moving it along the surface of a sphere."""
+        new_position = self.step_on_sphere(initial_point, center, step_theta, step_phi)
+        translation_vector = np.array(new_position) - np.array(initial_point)
+        
+        # Translate the molecule by the calculated translation vector
+        for atom in molecule:
+            atom.position += translation_vector
+        return molecule.positions
+
+    # Rotation matrix
     def Rx(self, angle):
         """Rotation matrix for rotation around x-axis. Units of angles is radians."""
         c, s = np.cos(angle), np.sin(angle)
@@ -107,20 +115,12 @@ class TranslateMoleculeSphere:
         """Combined rotation matrix for rotations around x, y, and z axes. Units of angles is radians."""
         return self.Rz(gamma) @ self.Ry(beta) @ self.Rx(alpha)
     
+    # Rotate molecule
     def rotate_molecule(self, molecule: Atoms, center: list, alpha: float, beta: float, gamma: float):
         R = self.rotation_matrix(alpha, beta, gamma)
         return (molecule - center) @ R.T + center
 
-    def translate_on_sphere(self, molecule: Atoms, initial_point: list, center: list, step_theta: float, step_phi: float):
-        """Translate the molecule by moving it along the surface of a sphere."""
-        new_position = self.step_on_sphere(initial_point, center, step_theta, step_phi)
-        translation_vector = np.array(new_position) - np.array(initial_point)
-        
-        # Translate the molecule by the calculated translation vector
-        for atom in molecule:
-            atom.position += translation_vector
-        return molecule.positions
-
+    # Utility functions for objective function
     def lennard_jones_repulsion(self, R1, R2, sigma=10):
         diff = R1[:,None,:] - R2[None,:,:]
         r = np.linalg.norm(diff, axis=-1)
@@ -129,10 +129,10 @@ class TranslateMoleculeSphere:
     def electrostatic_repulsion(self, R1, R2, q1, q2):
         diff = R1[:, None, :] - R2[None, :, :]
         r = np.linalg.norm(diff, axis=-1)
-
         qprod = np.abs(q1[:, None] * q2[None, :])  # force repulsion
         return np.sum(qprod / r)
 
+    # Objective function to minimize
     def objective_combined(self, Vars):
         step_theta, step_phi, alpha, beta, gamma = Vars
         
@@ -145,7 +145,6 @@ class TranslateMoleculeSphere:
 
         # --- Rotation ---
         mol2_position = self.rotate_molecule(mol2_position, new_center, alpha, beta, gamma)
-
         mol1_position = self.molecule1.positions
 
         # --- Repulsion LJ ---
@@ -153,19 +152,23 @@ class TranslateMoleculeSphere:
 
         # --- Electrostatic repulsion ---
         # Get charges
-        q1 = self.molecule1.get_charges()  # Using atomic numbers as a proxy for charge
+        q1 = self.molecule1.get_charges()
         q2 = self.molecule2.get_charges()
+
         rep += self.electrostatic_repulsion(mol1_position, mol2_position, q1, q2)
         return rep
 
-    def opt_scipy_2(self):
+    # Optimization function
+    def optimize(self):
 
         # Bounds for the decision variables
         upper_bound = [ np.pi/2,  np.pi,  np.pi,  np.pi/2,  np.pi]  
         lower_bound = [-np.pi/2, -np.pi, -np.pi, -np.pi/2, -np.pi]
         bounds = optimize.Bounds(lower_bound, upper_bound)
+
         # Initial guess
         initial_guess = [0.0, 0.0, 0.0, 0.0, 0.0]
+
         # Optimize translation first
         result = optimize.minimize(self.objective_combined, 
                                              x0=initial_guess, bounds=bounds, 
@@ -178,6 +181,7 @@ class TranslateMoleculeSphere:
         # Find the vector to apply the translation to molecule 2
         self.molecule2.positions = self.translate_on_sphere(self.molecule2, self.molecule2[self.atom_2].position, self.sphere_center, best_step_theta, best_step_phi)
         self.molecule2.positions = self.rotate_molecule(self.molecule2.positions, self.molecule2[self.atom_2].position, best_alpha, best_beta, best_gamma)
+        
         return result
 
 if __name__ == "__main__":
@@ -194,11 +198,11 @@ if __name__ == "__main__":
     for atom1_index, atom2_index in pair_of_atoms:
         atom1_index -= 1 # Convert to 0-based index
         atom2_index -= 1 # Convert to 0-based index
-        translator = TranslateMoleculeSphere(molecule1, molecule2, atom1_index, atom2_index)
-        result = translator.opt_scipy_2()
+        orientor = OrientMoleculeSphere(molecule1, molecule2, atom1_index, atom2_index)
+        result = orientor.optimize()
         best_step_theta, best_step_phi, best_alpha, best_beta, best_gamma = result.x
-        merged_molecule = translator.molecule1 + translator.molecule2
-        write(f'optimized_merged_molecule_{atom1_index}_{atom2_index}.xyz', merged_molecule,)
+        merged_molecule = orientor.molecule1 + orientor.molecule2
+        #write(f'optimized_merged_molecule_{atom1_index}_{atom2_index}.xyz', merged_molecule,)
         # Append to trajectory file
         with open(traj_file, 'a') as traj:
             traj.write(f"{len(merged_molecule)}\n")
@@ -219,19 +223,15 @@ if __name__ == "__main__":
         atom1_index -= 1
         atom2_index -= 1
 
-        orientor = TranslateMoleculeSphere(molecule1, molecule2, atom1_index, atom2_index)
+        orientor = OrientMoleculeSphere(molecule1, molecule2, atom1_index, atom2_index)
 
-        result_translate= orientor.opt_scipy_2()
-        best_step_theta, best_step_phi, best_alpha, best_beta, best_gamma = result_translate.x
-
-        #opt_rot = orientor.optimize_rotation(orientor.molecule1, orientor.atom_1, orientor.molecule2[orientor.atom_2].position)
-        #orientor.molecule1.positions = orientor.rotate_around_anchor(orientor.molecule1, opt_rot, orientor.atom_1).positions
+        result = orientor.optimize()
+        best_step_theta, best_step_phi, best_alpha, best_beta, best_gamma = result.x
 
         merged_molecule = orientor.molecule1 + orientor.molecule2
-        write(f'optimized_merged_molecule_{atom1_index}_{atom2_index}.xyz', merged_molecule,)
+        #write(f'optimized_merged_molecule_{atom1_index}_{atom2_index}.xyz', merged_molecule,)
         with open(traj_file2, 'a') as traj:
             traj.write(f"{len(merged_molecule)}\n")
             traj.write(f"Optimized merged molecule for atom pair ({atom1_index}, {atom2_index})\n")
             for atom in merged_molecule:
                 traj.write(f"{atom.symbol} {atom.position[0]} {atom.position[1]} {atom.position[2]}\n")
-        print('Next')
