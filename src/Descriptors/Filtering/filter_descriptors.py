@@ -1,5 +1,7 @@
 # Class for filtering descripters based on user-defined criteria
 
+from ..AMS.descriptor_AMS import DescriptorFMO, DescriptorFDL
+
 def get_atom_pairs(molecule1, molecule2, method='Hirshfeld', filter_descriptor='dual', max_pairs_per_molecule: int = 5, include_hydrogens: bool = False) -> list:
     # Get the descriptors for molecule 1
     if method == 'FMO':
@@ -41,7 +43,7 @@ def get_atom_pairs(molecule1, molecule2, method='Hirshfeld', filter_descriptor='
             if count >= max_pairs_per_molecule * 2:
                 break
             count += 1
-            atom1_name, atom2_name = atom_elec['Atom'], atom_nuc['Atom']
+            atom1_name, atom2_name = atom_nuc['Atom'], atom_elec['Atom']
             atom1_idx, atom2_idx = int(atom1_name.split('(')[1].rstrip(')')) - 1, int(atom2_name.split('(')[1].rstrip(')')) - 1
             atom_pairs.append((atom1_idx, atom2_idx))
     return atom_pairs

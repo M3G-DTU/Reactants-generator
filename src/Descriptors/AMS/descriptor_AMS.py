@@ -1,5 +1,4 @@
-from src.Descriptors.base_descriptor import BaseDescriptor
-
+from ..base_descriptor import BaseDescriptor
 class DescriptorFMO(BaseDescriptor):
     def __init__(self, file_path: str):
         super().__init__(file_path)
