@@ -39,7 +39,7 @@ def argument_parser():
     parser = argparse.ArgumentParser(description='Generate reactant geometries based on descriptors.')
     parser.add_argument('molecule1', type=str, help='Path to the output file of molecule 1')
     parser.add_argument('molecule2', type=str, help='Path to the output file of molecule 2')
-    parser.add_argument('--method', type=str, default='Hirshfeld', choices=['FMO', 'Hirshfeld'], help='Method to use for descriptor calculation and filtering')
+    parser.add_argument('--method', type=str, default='Hirshfeld', choices=['FMO', 'Hirshfeld', 'xTB'], help='Method to use for descriptor calculation and filtering')
     parser.add_argument('--filter_descriptor', type=str, default='dual', choices=['fukui', 'dual', 'ElNuc'], help='Descriptor to use for filtering atoms')
     parser.add_argument('--max_pairs_per_molecule', type=int, default=5, help='Maximum number of atom pairs to generate per molecule')
     parser.add_argument('--include_hydrogens', action='store_false', help='Whether to include hydrogens in the atom pairs', default=True)
@@ -51,11 +51,18 @@ def main():
     atom_pairs = get_atom_pairs(args.molecule1, args.molecule2, method=args.method, filter_descriptor=args.filter_descriptor, max_pairs_per_molecule=args.max_pairs_per_molecule, include_hydrogens=args.include_hydrogens)
     print('Atom pairs (mol1_idx, mol2_idx):')
     print(atom_pairs)
-    # Create temporary xyz files for the two molecules
-    from_AMS_out_to_xyz(args.molecule1, "temp1.xyz")
-    from_AMS_out_to_xyz(args.molecule2, "temp2.xyz")
-    molecule1 = read("temp1.xyz")
-    molecule2 = read("temp2.xyz")
+    # Create temporary xyz files for the two molecules if not a .xyz file
+    if not args.molecule1.endswith(".xyz"):
+        from_AMS_out_to_xyz(args.molecule1, "temp1.xyz")
+        molecule1 = read("temp1.xyz")
+    else:
+        molecule1 = read(args.molecule1)
+    if not args.molecule2.endswith(".xyz"):
+        from_AMS_out_to_xyz(args.molecule2, "temp2.xyz")
+        molecule2 = read("temp2.xyz")
+    else:
+        molecule2 = read(args.molecule2)
+
     for atom1_idx, atom2_idx in atom_pairs:
         orientor = OrientMoleculeSphere(molecule1, molecule2, atom1_idx, atom2_idx)
 
@@ -70,7 +77,9 @@ def main():
             for atom in merged_xyz:
                 f.write(f"{atom.symbol[0]} {atom.position[0]:.8f} {atom.position[1]:.8f} {atom.position[2]:.8f}\n")
     # Remove temporary xyz files
-    os.remove("temp1.xyz")
-    os.remove("temp2.xyz")
+    if not args.molecule1.endswith(".xyz"):
+        os.remove("temp1.xyz")
+    if not args.molecule2.endswith(".xyz"):
+        os.remove("temp2.xyz")
 if __name__ == "__main__":
     main()

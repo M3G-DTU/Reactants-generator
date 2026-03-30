@@ -1,12 +1,16 @@
 # Class for filtering descripters based on user-defined criteria
 
 from ..AMS.descriptor_AMS import DescriptorFMO, DescriptorFDL
+from ..XTB.descriptor_XTB import DescriptorXTB
 
 def get_atom_pairs(molecule1, molecule2, method='Hirshfeld', filter_descriptor='dual', max_pairs_per_molecule: int = 5, include_hydrogens: bool = False) -> list:
     # Get the descriptors for molecule 1
     if method == 'FMO':
         descriptor1 = DescriptorFMO(molecule1)
         descriptor2 = DescriptorFMO(molecule2)
+    elif method == 'xTB':
+        descriptor1 = DescriptorXTB(molecule1)
+        descriptor2 = DescriptorXTB(molecule2)
     else:
         descriptor1 = DescriptorFDL(molecule1)
         descriptor2 = DescriptorFDL(molecule2)
