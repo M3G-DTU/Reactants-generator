@@ -7,8 +7,10 @@
 # Import the necessary classes and functions
 from Descriptors.Filtering.filter_descriptors import get_atom_pairs
 from ArrangeMolecules.rearange import OrientMoleculeSphere
+from SmilesConverter.SmilesCoverter import create_xyz_from_smiles
 import argparse
 from ase.io import read
+from tqdm import tqdm
 import os
 
 def from_AMS_out_to_xyz(file_path: str, output_path: str = "temp.xyz"):
@@ -48,23 +50,33 @@ def argument_parser():
 
 def main():
     args = argument_parser()
-    atom_pairs = get_atom_pairs(args.molecule1, args.molecule2, method=args.method, filter_descriptor=args.filter_descriptor, max_pairs_per_molecule=args.max_pairs_per_molecule, include_hydrogens=args.include_hydrogens)
-    print('Atom pairs (mol1_idx, mol2_idx):')
-    print(atom_pairs)
-    # Create temporary xyz files for the two molecules if not a .xyz file
-    if not args.molecule1.endswith(".xyz"):
+
+    # We Have three different input formats for the molecules: .xyz, .out and SMILES strings.
+    if args.molecule1.endswith(".xyz"):
+        molecule1 = read(args.molecule1)
+    elif args.molecule1.endswith(".out"):
         from_AMS_out_to_xyz(args.molecule1, "temp1.xyz")
         molecule1 = read("temp1.xyz")
     else:
-        molecule1 = read(args.molecule1)
-    if not args.molecule2.endswith(".xyz"):
+        create_xyz_from_smiles(args.molecule1, "temp1")
+        molecule1 = read("temp1.xyz")
+        if args.method != 'xTB':
+            raise ValueError("SMILES input must use xTB method for descriptors.")
+    if args.molecule2.endswith(".xyz"):
+        molecule2 = read(args.molecule2)
+    elif args.molecule2.endswith(".out"):
         from_AMS_out_to_xyz(args.molecule2, "temp2.xyz")
         molecule2 = read("temp2.xyz")
     else:
-        molecule2 = read(args.molecule2)
+        create_xyz_from_smiles(args.molecule2, "temp2")
+        molecule2 = read("temp2.xyz")
+        if args.method != 'xTB':
+            raise ValueError("SMILES input must use xTB method for descriptors.")
 
-    for atom1_idx, atom2_idx in atom_pairs:
-        orientor = OrientMoleculeSphere(molecule1, molecule2, atom1_idx, atom2_idx)
+    atom_pairs = get_atom_pairs(args.molecule1, args.molecule2, method=args.method, filter_descriptor=args.filter_descriptor, max_pairs_per_molecule=args.max_pairs_per_molecule, include_hydrogens=args.include_hydrogens)
+
+    for atom1_idx, atom2_idx in tqdm(atom_pairs, desc="Processing atom pairs"):
+        orientor = OrientMoleculeSphere(molecule1, molecule2, atom1_idx, atom2_idx,sphere_radius=2.5)
 
         # Optimize orientation
         result = orientor.optimize()
@@ -73,7 +85,7 @@ def main():
         merged_xyz = orientor.molecule1 + orientor.molecule2
         with open(f"{args.output_dir}/reactant_{orientor.molecule1[atom1_idx].symbol}{atom1_idx}_{orientor.molecule2[atom2_idx].symbol}{atom2_idx}.xyz", "w") as f:
             f.write(f"{len(merged_xyz)}\n")
-            f.write(f"Reactant geometry for atom pair ({atom1_idx}, {atom2_idx})\n")
+            f.write(f"Reactant geometry for atom pair ({atom1_idx}, {atom2_idx + len(orientor.molecule1)})\n")
             for atom in merged_xyz:
                 f.write(f"{atom.symbol[0]} {atom.position[0]:.8f} {atom.position[1]:.8f} {atom.position[2]:.8f}\n")
     # Remove temporary xyz files

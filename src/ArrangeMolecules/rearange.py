@@ -3,6 +3,8 @@
 
 import numpy as np
 from scipy import optimize
+# Import differential evolution
+from scipy.optimize import differential_evolution
 from ase import Atoms
 from ase.io import read, write
 from xtb.ase.calculator import XTB
@@ -121,7 +123,7 @@ class OrientMoleculeSphere:
         return (molecule - center) @ R.T + center
 
     # Utility functions for objective function
-    def lennard_jones_repulsion(self, R1, R2, sigma=10):
+    def lennard_jones_repulsion(self, R1, R2, sigma=1):
         diff = R1[:,None,:] - R2[None,:,:]
         r = np.linalg.norm(diff, axis=-1)
         return np.sum((sigma / r)**12)
@@ -152,10 +154,10 @@ class OrientMoleculeSphere:
 
         # --- Electrostatic repulsion ---
         # Get charges
-        q1 = self.molecule1.get_charges()
-        q2 = self.molecule2.get_charges()
-
-        rep += self.electrostatic_repulsion(mol1_position, mol2_position, q1, q2)
+        #q1 = self.molecule1.get_charges()
+        #q2 = self.molecule2.get_charges()
+#
+        #rep += self.electrostatic_repulsion(mol1_position, mol2_position, q1, q2)
         return rep
 
     # Optimization function
@@ -168,9 +170,13 @@ class OrientMoleculeSphere:
 
         # Initial guess
         initial_guess = [0.0, 0.0, 0.0, 0.0, 0.0]
-
+        # if len(self.molecule2) > 6 and len(self.molecule1) > 6:
+        # We want more initial diversity to avoid local minima
+        if len(self.molecule2.positions) > 6 and len(self.molecule1.positions) > 6:
+            result = optimize.differential_evolution(self.objective_combined, bounds=bounds, maxiter=100, tol=1e-6)
+        else:
         # Optimize translation first
-        result = optimize.minimize(self.objective_combined, 
+            result = optimize.minimize(self.objective_combined, 
                                              x0=initial_guess, bounds=bounds, 
                                              method='L-BFGS-B', 
                                              options={'maxiter': 100, 'ftol': 1e-6})
